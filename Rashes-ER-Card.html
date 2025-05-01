@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ER Rash Management Flowchart</title>
+    <style>
+        /* --- General Styling --- */
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 25px;
+            background-color: #f4f4f4; /* Light gray background */
+            line-height: 1.4;
+        }
+
+        .flowchart-container {
+            position: relative; /* Needed for absolute positioning of SVG overlay */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px; /* Vertical spacing between main path nodes */
+            width: 100%;
+            max-width: 1800px; /* Wider for wall display */
+            margin: auto;
+            padding-bottom: 50px; /* Space for disclaimer and bottom nodes */
+        }
+
+        /* --- Node Styling --- */
+        .node {
+            border: 2px solid #333;
+            padding: 15px 25px;
+            text-align: center;
+            background-color: #ffffff;
+            box-shadow: 4px 4px 8px rgba(0,0,0,0.15);
+            border-radius: 8px; /* Default rectangle */
+            width: 85%; /* Relative width */
+            max-width: 500px; /* Max width for readability */
+            position: relative; /* For JS positioning & pseudo-elements */
+            z-index: 1; /* Nodes above SVG lines */
+            box-sizing: border-box; /* Include padding/border in width */
+        }
+
+        .node strong {
+            display: block;
+            font-size: 1.15em; /* Slightly larger titles */
+            margin-bottom: 10px;
+            color: #1a1a1a;
+        }
+
+        .node ul {
+            list-style: disc;
+            text-align: left;
+            margin-left: 20px;
+            padding-left: 15px;
+            font-size: 0.95em; /* Slightly larger list text */
+            margin-top: 8px;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .node li {
+            margin-bottom: 5px;
+        }
+
+        /* --- Node Shapes --- */
+        .oval {
+            border-radius: 50% / 50%;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding-top: 0; padding-bottom: 0;
+            width: 300px;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .decision {
+            border-radius: 0;
+            transform: rotate(45deg);
+            width: 220px; /* Larger diamond */
+            height: 220px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 15px;
+            margin: 50px 0; /* Extra margin */
+            font-weight: bold;
+        }
+        .decision > div { /* Counter-rotate text inside diamond */
+            transform: rotate(-45deg);
+            max-width: 90%;
+        }
+        .decision .details { /* Styling for clarifying text in diamonds */
+            font-size: 0.75em;
+            margin-top: 8px;
+            font-style: italic;
+            font-weight: normal; /* Details less prominent */
+            color: #555;
+            line-height: 1.2;
+        }
+
+        /* --- Color Coding --- */
+        .neutral { background-color: #e9ecef; border-color: #adb5bd; } /* Light Gray */
+        .critical { background-color: #f8d7da; border-color: #dc3545; color: #721c24; } /* Red Alert */
+        .pruritic-bg { background-color: #fff3cd; border-color: #ffc107; } /* Orange Theme - Container BG */
+        .non-pruritic-bg { background-color: #d1ecf1; border-color: #0dcaf0; } /* Blue Theme - Container BG */
+
+        /* Node colors within pathways */
+        .node.pruritic { background-color: #fff8e1; border-color: #ffcc80; }
+        .node.non-pruritic { background-color: #e0f7fa; border-color: #80deea; }
+        .node.decision.pruritic { background-color: #ffecb3; border-color: #ffa726; }
+        .node.decision.non-pruritic { background-color: #b3e5fc; border-color: #4fc3f7; }
+
+        /* --- Layout Helpers --- */
+        .pathways-split { /* Container for the two columns */
+             display: flex;
+             justify-content: space-around; /* Space out columns */
+             width: 95%; /* Take up most of the container width */
+             gap: 2%; /* Space between columns */
+             margin-top: 20px;
+             align-items: flex-start; /* Align tops of columns */
+        }
+
+        .pathway-container {
+            border: 2px dashed grey;
+            padding: 20px;
+            width: 48%; /* Each column takes slightly less than half */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px; /* Spacing within pathway */
+            border-radius: 10px;
+            margin-bottom: 20px; /* Space below pathways */
+            box-sizing: border-box;
+        }
+        .pathway-container .node { width: 95%; max-width: none; } /* Nodes fill container width */
+
+        #life-threat-actions { /* Position explicitly via JS if needed, or use grid/flex */
+             /* Default to stacking below its decision node in normal flow */
+             margin-top: -30px; /* Adjust spacing if needed */
+             order: 3; /* Control order if using flex */
+        }
+
+        .end-path { /* Style for summary boxes within pathways */
+             margin-top: 15px;
+             font-style: italic;
+             background-color: rgba(255, 255, 255, 0.8);
+             padding: 12px 18px;
+        }
+
+        #disposition {
+             /* This node naturally follows the pathways-split container */
+             margin-top: 30px; /* Ensure space above */
+        }
+
+        /* --- SVG Canvas Styling for Connectors --- */
+        #connector-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%; /* Will be dynamically resized by JS */
+            pointer-events: none; /* Allows clicking through SVG onto nodes */
+            z-index: 0; /* Behind nodes */
+            overflow: visible; /* Allow lines outside initial bounds */
+        }
+
+        #connector-canvas line,
+        #connector-canvas path { /* Default line style */
+            stroke: #333;
+            stroke-width: 2.5;
+            fill: none;
+            marker-end: url(#arrowhead);
+        }
+        /* Specific line colors */
+        #connector-canvas .critical-line { stroke: #dc3545; stroke-width: 3; marker-end: url(#arrowhead-critical); }
+        #connector-canvas .pruritic-line { stroke: #e09a00; stroke-width: 2.5; marker-end: url(#arrowhead-pruritic); } /* Darker Orange */
+        #connector-canvas .non-pruritic-line { stroke: #0b9ebe; stroke-width: 2.5; marker-end: url(#arrowhead-non-pruritic); } /* Darker Blue */
+
+        /* SVG Text Label Styling */
+        #connector-canvas text {
+             fill: #111;
+             font-size: 13px;
+             font-weight: bold;
+             paint-order: stroke; /* Make text more readable over lines */
+             stroke: #f4f4f4; /* Match body background */
+             stroke-width: 3px;
+             stroke-linecap: butt;
+             stroke-linejoin: miter;
+        }
+
+        /* --- Disclaimer --- */
+        .disclaimer {
+            margin-top: 40px;
+            font-size: 0.85em;
+            color: #555;
+            text-align: center;
+            width: 90%;
+            max-width: 800px;
+            padding-top: 20px;
+            border-top: 1px solid #ccc;
+        }
+
+        /* --- Basic Responsiveness --- */
+        @media (max-width: 1200px) {
+            .pathways-split {
+                flex-direction: column; /* Stack pathways */
+                align-items: center;
+                width: 100%;
+            }
+            .pathway-container {
+                width: 90%; /* Full width when stacked */
+                max-width: 600px; /* Limit width */
+            }
+            .node { width: 90%; }
+            .oval { width: 250px; height: 60px; }
+            .decision { width: 180px; height: 180px; }
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 15px; }
+            .node { padding: 12px 18px; font-size: 0.9em; }
+            .node ul { font-size: 0.85em; margin-left: 15px; padding-left: 10px;}
+            .oval { width: 220px; height: 55px; font-size: 1em;}
+            .decision { width: 150px; height: 150px; margin: 40px 0; padding: 10px;}
+            .decision .details { font-size: 0.7em; }
+            .flowchart-container { gap: 20px; }
+            .pathway-container { gap: 15px; }
+            #connector-canvas text { font-size: 11px; stroke-width: 2px;}
+        }
+         @media (max-width: 480px) {
+             .node { padding: 10px 15px; }
+             .oval { width: 180px; height: 50px; }
+             .decision { width: 130px; height: 130px; }
+         }
+
+    </style>
+</head>
+<body>
+
+    <div class="flowchart-container">
+
+        <!-- SVG Definitions for Arrowheads -->
+        <svg id="connector-canvas">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="8.5" refY="3.5" orient="auto" markerUnits="strokeWidth">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#333" />
+                </marker>
+                <marker id="arrowhead-critical" markerWidth="10" markerHeight="7" refX="8.5" refY="3.5" orient="auto" markerUnits="strokeWidth">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#dc3545" />
+                </marker>
+                <marker id="arrowhead-pruritic" markerWidth="10" markerHeight="7" refX="8.5" refY="3.5" orient="auto" markerUnits="strokeWidth">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#e09a00" />
+                </marker>
+                <marker id="arrowhead-non-pruritic" markerWidth="10" markerHeight="7" refX="8.5" refY="3.5" orient="auto" markerUnits="strokeWidth">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#0b9ebe" />
+                </marker>
+            </defs>
+        </svg>
+
+        <!-- START NODE -->
+        <div class="node oval neutral" id="start">Patient Presents with RASH</div>
+
+        <!-- INITIAL ASSESSMENT -->
+        <div class="node process neutral" id="initial-assessment">
+            <strong>INITIAL ASSESSMENT (Immediate Actions)</strong>
+            <ul>
+                <li><strong>ABCs & Vital Signs:</strong> Ensure stability (Airway, Breathing, Circulation).</li>
+                <li><strong>Brief Visual Exam:</strong> Gross appearance, distribution, signs of distress?</li>
+                <li><strong>Quick History:</strong> Onset? Sudden/Gradual? Associated Sx (Fever, SOB, Swelling, Pain)? New Meds/Exposures? Allergies?</li>
+            </ul>
+        </div>
+
+        <!-- LIFE THREAT DECISION -->
+        <div class="node decision critical" id="life-threat-decision">
+            <div>SUSPECT LIFE-THREATENING CONDITION?
+                 <div class="details">(Signs: Airway compromise, Hypotension, Diffuse Erythroderma + Fever, Mucosal Involvement + Blistering/Sloughing, Purpura + Fever/Sepsis, Rapidly Spreading Painful Erythema)</div>
+             </div>
+        </div>
+
+        <!-- LIFE THREAT ACTIONS (Place logically after decision) -->
+        <div class="node process critical" id="life-threat-actions">
+             <strong>IMMEDIATE ACTION - LIFE THREATS</strong>
+             <ul>
+                 <li><strong>Anaphylaxis/Angioedema:</strong> IM Epinephrine (0.3-0.5mg Ad; 0.01mg/kg Peds), O2, IV Fluids, Antihistamines (H1+H2), Steroids. SECURE AIRWAY EARLY.</li>
+                 <li><strong>SJS/TEN:</strong> STOP Offending Drug, Fluid Resuscitation, Wound Care, Pain Mgmt, Urgent Derm/Burn Consult, +/- IVIG/Cyclosporine.</li>
+                 <li><strong>Meningococcemia/Purpura Fulminans:</strong> IV Fluids, Broad IV Abx (Ceftriaxone+Vanc), Cultures, LP (if stable), Supportive Care, Droplet Precautions.</li>
+                 <li><strong>Necrotizing Fasciitis:</strong> IV Fluids, Broad IV Abx (incl. Anaerobes/MRSA), URGENT Surgical Consult & Debridement, Pain Control, Tetanus.</li>
+                 <li><strong>DRESS Syndrome:</strong> STOP Offending Drug, Supportive Care, Systemic Corticosteroids (often high dose), Consult Derm/Medicine.</li>
+             </ul>
+        </div>
+
+        <!-- FOCUSED EVALUATION -->
+        <div class="node process neutral" id="focused-eval">
+            <strong>FOCUSED HISTORY & EXAM</strong>
+            <ul>
+                <li><strong>History:</strong> Itch? Pain? Fever? Chronicity? Triggers? Meds (New/Old)? Travel? Sick contacts? Atopy Hx? Immune status?</li>
+                <li><strong>Exam:</strong> Morphology (Macules, Papules, Vesicles, Bullae, Pustules, Wheals, Plaques, Purpura, Targets?), Distribution (Localized, Generalized, Dermatomal?), Mucosal involvement?</li>
+            </ul>
+        </div>
+
+        <!-- PRURITUS DECISION -->
+        <div class="node decision neutral split" id="pruritus-decision">
+            <div>PRIMARY SYMPTOM: PRURITUS (ITCH)?</div>
+        </div>
+
+        <!-- Pathways Container -->
+        <div class="pathways-split">
+
+            <!-- PRURITIC PATHWAY CONTAINER -->
+            <div class="pathway-container pruritic-bg" id="pruritic-pathway">
+                <div class="node decision pruritic" id="pruritic-morphology"><div>Morphology Suggests:</div></div>
+                <!-- Pruritic Condition Nodes -->
+                <div class="node process pruritic" id="urticaria"><strong>Urticaria / Angioedema (Simple):</strong> Antihistamines (H1: Cetirizine, Loratadine, Fexo; +/- Diphenhydramine). H2 Blockers adj. Steroids (severe/refractory).</div>
+                <div class="node process pruritic" id="contact-derm"><strong>Contact Dermatitis (Allergic/Irritant):</strong> Topical Corticosteroids (Potency varies). Systemic Steroids (severe). Avoid trigger. Cool compress. Antihistamines (itch).</div>
+                <div class="node process pruritic" id="eczema"><strong>Eczema Flare (Atopic Derm):</strong> Topical Corticosteroids, Emollients (thick). Antihistamines (night itch). +/- Abx (secondary infection). Wet wraps (severe).</div>
+                <div class="node process pruritic" id="scabies"><strong>Scabies:</strong> Permethrin Cream / Oral Ivermectin. Treat contacts. Wash linens (hot). Antihistamines (itch persists). Topical steroids (residual rash).</div>
+                <div class="node process pruritic" id="drug-viral-pruritic"><strong>Drug Rxn / Viral Exanthem (Morbilliform):</strong> Antihistamines. Topical Steroids (inflamed). STOP non-essential new meds. Supportive care.</div>
+                <div class="node process pruritic end-path" id="pruritus-mgmt"><strong>General Pruritus Mgmt:</strong> Cool Compresses, Emollients, Keep Nails Short. Consider Doxepin (refractory - use carefully).</div>
+            </div>
+
+            <!-- NON-PRURITIC PATHWAY CONTAINER -->
+            <div class="pathway-container non-pruritic-bg" id="non-pruritic-pathway">
+                <div class="node decision non-pruritic" id="non-pruritic-morphology"><div>Morphology / Features Suggest:</div></div>
+                <!-- Non-Pruritic Condition Nodes -->
+                <div class="node process non-pruritic" id="cellulitis"><strong>Cellulitis / Erysipelas:</strong> Antibiotics (PO/IV for Skin Flora +/- MRSA). Elevation. Mark borders. Pain control. Consider Imaging (abscess?).</div>
+                <div class="node process non-pruritic" id="em-minor"><strong>Erythema Multiforme (Minor):</strong> Symptomatic (Antihistamines if itchy, Topical Steroids rarely needed). +/- Oral Acyclovir (if HSV trigger & early). Rule out SJS.</div>
+                <div class="node process non-pruritic" id="purpura"><strong>Purpura / Petechiae (NON-BLANCHING):</strong> **INVESTIGATE!** CBC, Plt, Coags, CMP, UA, ESR/CRP. Cultures (if febrile). Treat Cause. Consults (Heme/Rheum/ID). Consider HSP (kids).</div>
+                <div class="node process non-pruritic" id="viral-non-pruritic"><strong>Viral Exanthem (Morbilliform):</strong> Symptomatic (Antipyretics: Acetaminophen/Ibuprofen). Supportive care, hydration. Reassurance.</div>
+                <div class="node process non-pruritic" id="fixed-drug"><strong>Fixed Drug Eruption:</strong> STOP offending drug. Topical corticosteroids (symptomatic relief). Document agent clearly.</div>
+                <div class="node process non-pruritic end-path" id="non-pruritus-mgmt"><strong>General Non-Pruritic Mgmt:</strong> Pain Control (Acetaminophen, NSAIDs, Opioids if needed). Treat underlying cause. Wound care PRN.</div>
+            </div>
+
+        </div> <!-- end .pathways-split -->
+
+        <!-- DISPOSITION NODE (Below pathways) -->
+        <div class="node process neutral" id="disposition">
+            <strong>DISPOSITION & FOLLOW-UP</strong>
+            <ul>
+                <li><strong>Consider Admission:</strong> Systemic sx (fever, sepsis), Severe pain, Rapid progression, Extensive blistering/sloughing, Immunocompromised, Need IV Rx, Diagnostic uncertainty w/ concern, Social factors.</li>
+                <li><strong>Discharge Instructions:</strong> Clear diagnosis (if possible), Treatment plan, Explicit Return Precautions (worsening rash, fever, new sx), Follow-up plan (PCP, Dermatology, Specific Clinic).</li>
+                <li><strong>Consults:</strong> Dermatology, Infectious Disease, Rheumatology, Hematology, Surgery, Burn Unit as indicated by suspected diagnosis.</li>
+            </ul>
+        </div>
+
+        <!-- DISCLAIMER -->
+        <div class="disclaimer">
+            This flowchart is a clinical decision support tool intended for Emergency Department use by qualified healthcare professionals. It does not replace clinical judgment, comprehensive patient evaluation, or consideration of individual patient factors (allergies, comorbidities, age, weight, renal/hepatic function). Always verify drug dosages and indications. Management decisions remain the responsibility of the treating clinician.
+        </div>
+
+    </div> <!-- end .flowchart-container -->
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const svg = document.getElementById('connector-canvas');
+            const container = document.querySelector('.flowchart-container');
+            const defsContent = svg.querySelector('defs').outerHTML; // Store defs
+
+            // --- Debounced Resize Handler ---
+            let resizeTimeout;
+            function handleResize() {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    // Recalculate container height for SVG sizing
+                    // Need to ensure layout shifts are complete
+                    requestAnimationFrame(() => { // Wait for next frame render
+                        const containerHeight = container.scrollHeight;
+                        const containerWidth = container.scrollWidth;
+                        svg.style.width = `${containerWidth}px`;
+                        svg.style.height = `${containerHeight}px`;
+                        svg.setAttribute('viewBox', `0 0 ${containerWidth} ${containerHeight}`);
+
+                        // Clear existing lines and redraw all connections
+                        svg.innerHTML = defsContent; // Restore defs
+                        drawAllConnections();
+                    });
+                }, 250); // Debounce redraw
+            }
+
+            window.addEventListener('resize', handleResize);
+
+            // --- Connection Definitions ---
+            // Format: [fromId, toId, options]
+            // Options: { label: 'Yes/No', lineClass: '...', arrowId: '...', anchor: [fromAnchor, toAnchor] }
+            // Anchors: 'top', 'bottom', 'left', 'right', 'center'
+            const connections = [
+                ['start', 'initial-assessment', { anchor: ['bottom', 'top'] }],
+                ['initial-assessment', 'life-threat-decision', { anchor: ['bottom', 'top'] }],
+                // Decision branches need careful anchoring, especially for diamonds
+                ['life-threat-decision', 'life-threat-actions', { label: 'YES', lineClass: 'critical-line', anchor: ['bottom', 'top'] }], // Directly below for now
+                ['life-threat-decision', 'focused-eval', { label: 'NO', lineClass: '', anchor: ['right', 'left'] }], // Flow goes right then down
+                // Create intermediate points for cleaner flow if needed, or rely on path routing
+                ['focused-eval', 'pruritus-decision', { anchor: ['bottom', 'top'] }],
+                ['pruritus-decision', 'pruritic-pathway', { label: 'YES', lineClass: 'pruritic-line', anchor: ['left', 'top'] }], // Connect to top of pathway container
+                ['pruritus-decision', 'non-pruritic-pathway', { label: 'NO', lineClass: 'non-pruritic-line', anchor: ['right', 'top'] }], // Connect to top of pathway container
+
+                // Pruritic Pathway Connections (Inside Container)
+                ['pruritic-morphology', 'urticaria', { lineClass: 'pruritic-line', anchor: ['bottom', 'top'] }],
+                ['pruritic-morphology', 'contact-derm', { lineClass: 'pruritic-line', anchor: ['bottom', 'top'] }],
+                ['pruritic-morphology', 'eczema', { lineClass: 'pruritic-line', anchor: ['bottom', 'top'] }],
+                ['pruritic-morphology', 'scabies', { lineClass: 'pruritic-line', anchor: ['bottom', 'top'] }],
+                ['pruritic-morphology', 'drug-viral-pruritic', { lineClass: 'pruritic-line', anchor: ['bottom', 'top'] }],
+                // Connect conditions to summary box
+                ['urticaria', 'pruritus-mgmt', { lineClass: 'pruritic-line', anchor: ['bottom', 'top'] }],
+                ['contact-derm', 'pruritus-mgmt', { lineClass: 'pruritic-line', anchor: ['bottom', 'top'] }],
+                ['eczema', 'pruritus-mgmt', { lineClass: 'pruritic-line', anchor: ['bottom', 'top'] }],
+                ['scabies', 'pruritus-mgmt', { lineClass: 'pruritic-line', anchor: ['bottom', 'top'] }],
+                ['drug-viral-pruritic', 'pruritus-mgmt', { lineClass: 'pruritic-line', anchor: ['bottom', 'top'] }],
+
+                // Non-Pruritic Pathway Connections (Inside Container)
+                ['non-pruritic-morphology', 'cellulitis', { lineClass: 'non-pruritic-line', anchor: ['bottom', 'top'] }],
+                ['non-pruritic-morphology', 'em-minor', { lineClass: 'non-pruritic-line', anchor: ['bottom', 'top'] }],
+                ['non-pruritic-morphology', 'purpura', { lineClass: 'non-pruritic-line', anchor: ['bottom', 'top'] }],
+                ['non-pruritic-morphology', 'viral-non-pruritic', { lineClass: 'non-pruritic-line', anchor: ['bottom', 'top'] }],
+                ['non-pruritic-morphology', 'fixed-drug', { lineClass: 'non-pruritic-line', anchor: ['bottom', 'top'] }],
+                // Connect conditions to summary box
+                ['cellulitis', 'non-pruritus-mgmt', { lineClass: 'non-pruritic-line', anchor: ['bottom', 'top'] }],
+                ['em-minor', 'non-pruritus-mgmt', { lineClass: 'non-pruritic-line', anchor: ['bottom', 'top'] }],
+                ['purpura', 'non-pruritus-mgmt', { lineClass: 'non-pruritic-line', anchor: ['bottom', 'top'] }],
+                ['viral-non-pruritic', 'non-pruritus-mgmt', { lineClass: 'non-pruritic-line', anchor: ['bottom', 'top'] }],
+                ['fixed-drug', 'non-pruritus-mgmt', { lineClass: 'non-pruritic-line', anchor: ['bottom', 'top'] }],
+
+                // Connecting pathways back to disposition
+                 // We need intermediate routing points or SVG paths for cleaner joins here.
+                 // Simple approach: Connect summary boxes to disposition
+                 ['pruritus-mgmt', 'disposition', { lineClass: 'pruritic-line', anchor: ['bottom', 'top'] }], // Needs adjustment for side-by-side
+                 ['non-pruritus-mgmt', 'disposition', { lineClass: 'non-pruritic-line', anchor: ['bottom', 'top'] }], // Needs adjustment
+            ];
+
+            // --- Helper Functions ---
+            function getElementCoords(elementId) {
+                const elem = document.getElementById(elementId);
+                if (!elem) { console.warn(`Element not found: ${elementId}`); return null; }
+                const rect = elem.getBoundingClientRect();
+                const containerRect = container.getBoundingClientRect();
+
+                // Coords relative to the container's top-left corner
+                return {
+                    id: elementId,
+                    elem: elem,
+                    top: rect.top - containerRect.top + container.scrollTop,
+                    left: rect.left - containerRect.left + container.scrollLeft,
+                    bottom: rect.bottom - containerRect.top + container.scrollTop,
+                    right: rect.right - containerRect.left + container.scrollLeft,
+                    width: rect.width,
+                    height: rect.height,
+                    cx: rect.left - containerRect.left + container.scrollLeft + rect.width / 2,
+                    cy: rect.top - containerRect.top + container.scrollTop + rect.height / 2
+                };
+            }
+
+            function drawLine(fromCoords, toCoords, options = {}) {
+                if (!fromCoords || !toCoords) return;
+
+                const { label, lineClass = '', anchor = ['center', 'center'] } = options;
+                const [fromAnchor, toAnchor] = anchor;
+
+                // Function to get point coords based on anchor string
+                const getAnchorPoint = (coords, anchorStr) => {
+                    switch (anchorStr) {
+                        case 'top': return { x: coords.cx, y: coords.top };
+                        case 'bottom': return { x: coords.cx, y: coords.bottom };
+                        case 'left': return { x: coords.left, y: coords.cy };
+                        case 'right': return { x: coords.right, y: coords.cy };
+                        case 'center': default: return { x: coords.cx, y: coords.cy };
+                    }
+                };
+
+                const start = getAnchorPoint(fromCoords, fromAnchor);
+                const end = getAnchorPoint(toCoords, toAnchor);
+
+                // --- Simple path routing for specific tricky connections ---
+                let pathData;
+                if (fromCoords.id === 'life-threat-decision' && toCoords.id === 'focused-eval') {
+                    // YES/NO split - make NO go right then down
+                    const intermediateY = fromCoords.cy;
+                    const intermediateX = Math.max(fromCoords.right, toCoords.left) + 60; // Point to the right
+                    pathData = `M ${start.x} ${start.y} H ${intermediateX} V ${end.y} H ${end.x}`;
+                } else if (fromCoords.id === 'pruritus-decision' && (toCoords.id === 'pruritic-pathway' || toCoords.id === 'non-pruritic-pathway')) {
+                     // Split to pathways - adjust entry point
+                     const entryY = toCoords.top - 10; // Connect slightly above container
+                     pathData = `M ${start.x} ${start.y} V ${entryY} H ${end.x}`; // Straight down then horizontal
+                 } else if ((fromCoords.id === 'pruritus-mgmt' || fromCoords.id === 'non-pruritus-mgmt') && toCoords.id === 'disposition') {
+                     // Joining pathways back - bring lines towards center then down
+                     const exitY = fromCoords.bottom + 20;
+                     const targetX = toCoords.cx; // Aim for center of disposition node
+                     pathData = `M ${start.x} ${start.y} V ${exitY} H ${targetX} V ${end.y}`;
+                 }
+                 else {
+                    // Default straight line
+                    pathData = `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+                }
+
+
+                // Create SVG path element
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', pathData);
+                path.setAttribute('class', lineClass);
+                path.setAttribute('marker-end', `url(#${options.arrowId || 'arrowhead'})`); // Use specific arrow or default
+                svg.appendChild(path);
+
+                // Add label (optional) near the start or middle of the *main segment*
+                if (label) {
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    let labelX, labelY;
+
+                    // Position label based on path type/direction
+                    if (fromCoords.id === 'life-threat-decision' && toCoords.id === 'focused-eval') { // NO branch
+                        labelX = start.x + 30; labelY = start.y + 15; // Place near 'right' anchor
+                    } else if (fromCoords.id === 'life-threat-decision' && toCoords.id === 'life-threat-actions') { // YES branch
+                        labelX = start.x; labelY = start.y + 25; // Place below 'bottom' anchor
+                    } else if (fromCoords.id === 'pruritus-decision') { // Pathway splits
+                         if (toCoords.id === 'pruritic-pathway') { labelX = start.x - 30; labelY = start.y + 15; } // YES Left
+                         else { labelX = start.x + 30; labelY = start.y + 15; } // NO Right
+                     }
+                    else { // Default middle positioning (less precise for paths)
+                        labelX = (start.x + end.x) / 2 + 5;
+                        labelY = (start.y + end.y) / 2 - 5;
+                    }
+
+                    text.setAttribute('x', labelX);
+                    text.setAttribute('y', labelY);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('dominant-baseline', 'middle');
+                    text.textContent = label;
+                    svg.appendChild(text);
+                }
+            }
+
+            function drawAllConnections() {
+                connections.forEach(([fromId, toId, options]) => {
+                    const fromCoords = getElementCoords(fromId);
+                    const toCoords = getElementCoords(toId);
+                    drawLine(fromCoords, toCoords, options);
+                });
+            }
+
+            // --- Initial Draw ---
+            // Ensure layout is stable before drawing
+            requestAnimationFrame(() => { // Use rAF
+                handleResize(); // Call resize handler to perform initial size calculation and draw
+            });
+
+        });
+    </script>
+
+</body>
+</html>
